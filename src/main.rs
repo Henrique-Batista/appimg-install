@@ -18,9 +18,20 @@ async fn main() -> anyhow::Result<()> {
 
     match &cli.command {
         Some(Commands::Install { path, global, dry_run, target_dir, no_desktop }) => {
-            tracing::info!("Installing AppImage from {}", path);
-            
             let path_buf = PathBuf::from(path);
+
+            // Verificações de segurança
+            if let Err(e) = crate::utils::security::validate_source_path(&path_buf) {
+                tracing::error!("Segurança: {}", e);
+                return Ok(());
+            }
+
+            if *global && !crate::utils::elevation::is_root() && !*dry_run {
+                tracing::info!("A instalação global requer privilégios de root. Solicitando autenticação...");
+                crate::utils::elevation::elevate_with_sudo()?;
+            }
+
+            tracing::info!("Installing AppImage from {}", path);
             
             if let Err(e) = core::validator::validate_appimage(&path_buf).await {
                 tracing::error!("Validation failed: {}", e);
@@ -44,12 +55,14 @@ async fn main() -> anyhow::Result<()> {
                 target_dir.clone().unwrap_or(default_target)
             };
 
+            // Verificação de segurança para o destino
+            if let Err(e) = crate::utils::security::validate_secure_path(&final_target, *global) {
+                tracing::error!("Segurança: {}", e);
+                return Ok(());
+            }
+
             if !final_target.exists() {
-                if !*dry_run {
-                    tokio::fs::create_dir_all(&final_target).await?;
-                } else {
-                    tracing::info!("[DRY-RUN] Would create directory {:?}", final_target);
-                }
+                executor.create_dir_all(&final_target).await?;
             }
 
             if let Err(e) = installer.install(&path_buf, &final_target).await {
@@ -60,10 +73,14 @@ async fn main() -> anyhow::Result<()> {
             if !no_desktop {
                 let app_name = path_buf.file_stem().unwrap_or_default().to_string_lossy().to_string();
                 let installed_path = final_target.join(path_buf.file_name().unwrap_or_default());
-                let desktop_dir = dirs::data_local_dir().unwrap_or_default().join("applications");
+                let desktop_dir = if *global {
+                    PathBuf::from("/usr/share/applications")
+                } else {
+                    dirs::data_local_dir().unwrap_or_default().join("applications")
+                };
                 
-                if !desktop_dir.exists() && !*dry_run {
-                    tokio::fs::create_dir_all(&desktop_dir).await?;
+                if !desktop_dir.exists() {
+                    executor.create_dir_all(&desktop_dir).await?;
                 }
 
                 if let Err(e) = core::desktop::create_desktop_entry(executor.as_ref(), &app_name, &installed_path, &desktop_dir).await {
@@ -74,7 +91,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Commands::Remove { name }) => {
-            tracing::info!("Removing AppImage: {}", name);
+            // Verificação de segurança para o nome do app
+            if let Err(e) = crate::utils::security::validate_app_name(name) {
+                tracing::error!("Segurança: {}", e);
+                return Ok(());
+            }
+
             let mut local = core::scanner::list_installed_appimages(false).await?;
             let mut global = core::scanner::list_installed_appimages(true).await?;
             local.append(&mut global);
@@ -85,19 +107,35 @@ async fn main() -> anyhow::Result<()> {
             });
 
             if let Some(app) = target {
-                let executor = core::executor::RealExecutor;
-                let remover = core::remover::Remover::new(&executor);
-                
-                remover.remove(&app.path).await?;
+                // Verificar permissões se o arquivo estiver em /opt
+                if app.path.starts_with("/opt") && !crate::utils::elevation::is_root() {
+                    tracing::info!("A remoção de um AppImage global requer privilégios de root. Solicitando autenticação...");
+                    crate::utils::elevation::elevate_with_sudo()?;
+                }
+
+                tracing::info!("Removing AppImage: {}", name);
+                let _executor = core::executor::RealExecutor;
+                let _remover = core::remover::Remover::new(&_executor);
+                _remover.remove(&app.path).await?;
                 let desktop_name = app.path.file_stem().unwrap_or_default().to_string_lossy().to_string();
-                let desktop_dir = dirs::data_local_dir().unwrap_or_default().join("applications");
-                if let Err(e) = core::desktop::remove_desktop_entry(&executor, &desktop_name, &desktop_dir).await {
-                    tracing::warn!("Erro ao remover atalho: {:?}", e);
+                
+                // Tentar remover tanto do local quanto do global
+                let local_desktop_dir = dirs::data_local_dir().unwrap_or_default().join("applications");
+                let global_desktop_dir = PathBuf::from("/usr/share/applications");
+
+                if let Err(e) = core::desktop::remove_desktop_entry(&_executor, &desktop_name, &local_desktop_dir).await {
+                    tracing::debug!("Erro ao remover atalho local (pode não existir): {:?}", e);
+                }
+
+                if app.path.starts_with("/opt") {
+                    if let Err(e) = core::desktop::remove_desktop_entry(&_executor, &desktop_name, &global_desktop_dir).await {
+                        tracing::warn!("Erro ao remover atalho global: {:?}", e);
+                    }
                 }
                 
-                println!("AppImage '{}' removido com sucesso.", name);
+                tracing::info!("AppImage '{}' removido com sucesso.", name);
             } else {
-                eprintln!("AppImage não encontrado: {}", name);
+                tracing::error!("AppImage não encontrado: {}", name);
             }
         }
         Some(Commands::List) => {

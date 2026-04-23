@@ -6,6 +6,7 @@ pub struct AppImageInfo {
     pub name: String,
     pub path: PathBuf,
     pub size_mb: f64,
+    pub is_global: bool,
 }
 
 pub async fn list_installed_appimages(global: bool) -> Result<Vec<AppImageInfo>> {
@@ -28,7 +29,6 @@ pub async fn list_installed_appimages(global: bool) -> Result<Vec<AppImageInfo>>
         let path = entry.path();
         if path.is_file() {
             let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-            // Assumir que arquivos no diretório são AppImages, ou verificar a extensão
             if file_name.ends_with(".appimage") || file_name.contains("appimage") {
                 let metadata = entry.metadata().await?;
                 let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
@@ -37,6 +37,7 @@ pub async fn list_installed_appimages(global: bool) -> Result<Vec<AppImageInfo>>
                     name: entry.file_name().to_string_lossy().to_string(),
                     path,
                     size_mb,
+                    is_global: global,
                 });
             }
         }
@@ -73,6 +74,7 @@ mod tests {
                         name: entry.file_name().to_string_lossy().to_string(),
                         path,
                         size_mb,
+                        is_global: false,
                     });
                 }
             }

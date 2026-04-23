@@ -4,7 +4,10 @@ O **Aura-Image** é um gerenciador de AppImages moderno e performático para Lin
 
 ## ✨ Funcionalidades
 
-- **Interface TUI Intuitiva**: Navegue por suas aplicações instaladas e instale novos AppImages através de um dashboard interativo construído com `ratatui`.
+- **Suporte Global**: Instale aplicações para todos os usuários do sistema em `/opt/appimages` com a flag `--global`.
+- **Elevação de Privilégios Inteligente**: Solicita permissões de root automaticamente via `sudo` (CLI) ou `pkexec` (TUI) apenas quando necessário.
+- **Segurança Reforçada**: Módulo de segurança dedicado que valida inputs e caminhos para prevenir ataques de execução de código arbitrário e manipulação de arquivos sensíveis.
+- **Interface TUI Intuitiva**: Navegue por suas aplicações e identifique facilmente apps globais com a marcação visual `[Global]`.
 - **CLI Poderosa**: Gerencie aplicações programaticamente ou via terminal direto com comandos como `list`, `install` e `remove`.
 - **Segurança e Validação**: Verifica a integridade dos AppImages (Magic Bytes) antes de qualquer operação.
 - **Integração com Desktop**: Cria automaticamente arquivos `.desktop` compatíveis com o padrão FreeDesktop e atualiza o banco de dados do sistema para reconhecimento imediato no KDE, GNOME e outros ambientes.
@@ -41,9 +44,13 @@ Para abrir a interface interativa, basta executar sem argumentos:
   ```bash
   aura-image list
   ```
-- **Instalar um AppImage**:
+- **Instalar um AppImage (Local)**:
   ```bash
   aura-image install /caminho/para/seu.AppImage
+  ```
+- **Instalar um AppImage (Global)**:
+  ```bash
+  aura-image install --global /caminho/para/seu.AppImage
   ```
 - **Remover uma aplicação**:
   ```bash
@@ -70,4 +77,4 @@ cargo test
 
 ## 📝 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Este projeto está sob a licença MIT.

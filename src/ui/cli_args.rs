@@ -33,7 +33,7 @@ pub enum Commands {
         #[arg(long)]
         target_dir: Option<PathBuf>,
 
-        /// Skip creating a .desktop launcher entry in ~/.local/share/applications/
+        /// Skip creating a .desktop launcher entry
         #[arg(long)]
         no_desktop: bool,
     },

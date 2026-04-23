@@ -7,6 +7,7 @@ pub trait Executor: Send + Sync {
     async fn set_permissions(&self, path: &Path, mode: u32) -> Result<()>;
     async fn write_file(&self, path: &Path, content: &str) -> Result<()>;
     async fn remove_file(&self, path: &Path) -> Result<()>;
+    async fn create_dir_all(&self, path: &Path) -> Result<()>;
 }
 
 pub struct RealExecutor;
@@ -41,6 +42,12 @@ impl Executor for RealExecutor {
         }
         Ok(())
     }
+
+    async fn create_dir_all(&self, path: &Path) -> Result<()> {
+        tracing::info!("Creating directory {:?}", path);
+        tokio::fs::create_dir_all(path).await?;
+        Ok(())
+    }
 }
 
 pub struct DryRunExecutor;
@@ -64,6 +71,11 @@ impl Executor for DryRunExecutor {
 
     async fn remove_file(&self, path: &Path) -> Result<()> {
         tracing::info!("[DRY-RUN] Would remove file {:?}", path);
+        Ok(())
+    }
+
+    async fn create_dir_all(&self, path: &Path) -> Result<()> {
+        tracing::info!("[DRY-RUN] Would create directory {:?}", path);
         Ok(())
     }
 }

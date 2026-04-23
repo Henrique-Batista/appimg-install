@@ -29,6 +29,9 @@ Varre diretórios locais (`~/.local/share/appimages/`) e globais (`/opt/appimage
 ### `installer.rs`, `remover.rs` & `desktop.rs`
 Scripts abstratos de instalação (cópia e permissões), remoção de arquivos, e geração/remoção de metadados (`.desktop`), sempre usando estritamente o `Executor` para realizar suas ações em disco.
 
+### `AppImageInfo`
+Estrutura central de dados que rastreia metadados das aplicações, incluindo se a instalação é local ou global (via flag `global`), permitindo que a UI aplique decorações visuais e o sistema decida os caminhos de remoção.
+
 ## 3. Camada `src/ui/` (Interface e Interação)
 
 ### `cli_args.rs`
@@ -38,12 +41,25 @@ Construído com `clap` (feature `derive`), encapsula todos os parâmetros e docu
 A interface rica em terminal. Construída com `ratatui` e gerida por um loop de eventos `crossterm`.
 A TUI utiliza o conceito de **Estados Focais** (enum `Focus`) para decidir se as setas do teclado controlam o *Menu Lateral* (com abas lógicas) ou a *Lista de Conteúdo* (trazendo os dados do scanner). O padrão de projeto aplicado aqui é o Loop de Redesenho (Draw Loop), mantendo uma taxa de atualização reativa (100ms/poll).
 
-## 4. Gestão de Erros e Logs (`src/utils/`)
+## 4. Gestão de Erros, Logs e Segurança (`src/utils/`)
 
-- **Tracing**: O sistema utiliza o crate `tracing` para logs estruturados. Ele é inicializado em `logger.rs` com um comportamento inteligente:
-  - **Sempre**: Grava logs detalhados em `~/.cache/aura-image/aura-image.log`.
-  - **CLI**: Exibe logs no terminal (stderr) por padrão, respeitando as flags `--quiet` e `--verbose`.
-  - **TUI**: Silencia a saída no terminal para evitar corrupção visual dos gráficos do Ratatui.
+### `logger.rs`
+O sistema utiliza o crate `tracing` para logs estruturados com comportamento inteligente:
+- **Sempre**: Grava logs detalhados em `~/.cache/aura-image/aura-image.log`.
+- **CLI**: Exibe logs no terminal (stderr) por padrão, respeitando as flags `--quiet` e `--verbose`.
+- **TUI**: Silencia a saída no terminal para evitar corrupção visual dos gráficos do Ratatui.
+
+### `elevation.rs`
+Gerencia a elevação de privilégios necessária para operações globais.
+- Utiliza `sudo` para comandos via CLI.
+- Utiliza `pkexec` (Polkit) para a TUI, garantindo integração com prompts de senha gráficos.
+- Assegura que o processo pai (TUI) continue rodando enquanto o comando elevado é executado em um sub-processo silencioso.
+
+### `security.rs`
+Módulo de segurança crítico que atua como firewall de sanidade para operações elevadas.
+- Valida nomes de aplicativos contra caracteres de escape de caminho (`../`).
+- Restringe caminhos de instalação globais apenas a diretórios autorizados (`/opt/appimages`, `/usr/share/applications`).
+- Previne leitura de arquivos sensíveis do sistema durante a validação de origem.
 
 ## 5. Testes Automatizados
 
