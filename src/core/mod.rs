@@ -1,6 +1,6 @@
-pub mod executor;
-pub mod validator;
-pub mod installer;
 pub mod desktop;
-pub mod scanner;
+pub mod executor;
+pub mod installer;
 pub mod remover;
+pub mod scanner;
+pub mod validator;

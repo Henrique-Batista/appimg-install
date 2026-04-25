@@ -28,11 +28,15 @@ pub async fn list_installed_appimages(global: bool) -> Result<Vec<AppImageInfo>>
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
         if path.is_file() {
-            let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+            let file_name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
             if file_name.ends_with(".appimage") || file_name.contains("appimage") {
                 let metadata = entry.metadata().await?;
                 let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-                
+
                 appimages.push(AppImageInfo {
                     name: entry.file_name().to_string_lossy().to_string(),
                     path,

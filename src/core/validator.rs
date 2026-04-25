@@ -14,14 +14,16 @@ pub enum ValidationError {
 
 pub async fn validate_appimage(path: &Path) -> Result<()> {
     tracing::debug!("Validating AppImage at {:?}", path);
-    
+
     if !path.exists() {
         return Err(ValidationError::FileNotFound(path.to_string_lossy().to_string()).into());
     }
 
-    let mut file = tokio::fs::File::open(path).await.map_err(ValidationError::IoError)?;
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(ValidationError::IoError)?;
     let mut buffer = [0u8; 11];
-    
+
     // Ler os primeiros 11 bytes para verificar cabeçalhos ELF e AppImage
     if file.read_exact(&mut buffer).await.is_err() {
         return Err(ValidationError::InvalidMagicBytes.into());
@@ -29,12 +31,16 @@ pub async fn validate_appimage(path: &Path) -> Result<()> {
 
     // ELF magic bytes: 0x7F 'E' 'L' 'F'
     let is_elf = buffer[0..4] == [0x7f, 0x45, 0x4c, 0x46];
-    
+
     // AppImage magic bytes at offset 8: 'A' 'I' 0x01 or 0x02
     let is_appimage = buffer[8..10] == [0x41, 0x49] && (buffer[10] == 0x01 || buffer[10] == 0x02);
 
     if !is_elf || !is_appimage {
-        tracing::error!("Failed magic bytes check. ELF: {}, AppImage: {}", is_elf, is_appimage);
+        tracing::error!(
+            "Failed magic bytes check. ELF: {}, AppImage: {}",
+            is_elf,
+            is_appimage
+        );
         return Err(ValidationError::InvalidMagicBytes.into());
     }
 
@@ -66,7 +72,9 @@ mod tests {
     async fn validates_correct_appimage_type2() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("valid.AppImage");
-        tokio::fs::write(&path, valid_appimage_header()).await.unwrap();
+        tokio::fs::write(&path, valid_appimage_header())
+            .await
+            .unwrap();
         assert!(validate_appimage(&path).await.is_ok());
     }
 

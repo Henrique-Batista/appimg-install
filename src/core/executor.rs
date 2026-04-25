@@ -60,7 +60,11 @@ impl Executor for DryRunExecutor {
     }
 
     async fn set_permissions(&self, path: &Path, mode: u32) -> Result<()> {
-        tracing::info!("[DRY-RUN] Would set permissions of {:?} to {:o}", path, mode);
+        tracing::info!(
+            "[DRY-RUN] Would set permissions of {:?} to {:o}",
+            path,
+            mode
+        );
         Ok(())
     }
 

@@ -1,10 +1,10 @@
-use tracing_subscriber::{fmt, EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub fn init_logger(is_tui: bool, quiet: bool, verbose: bool) -> anyhow::Result<()> {
     let log_dir = dirs::cache_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("aura-image");
-    
+
     std::fs::create_dir_all(&log_dir)?;
     let log_path = log_dir.join("aura-image.log");
     let log_file = std::fs::OpenOptions::new()
@@ -24,13 +24,15 @@ pub fn init_logger(is_tui: bool, quiet: bool, verbose: bool) -> anyhow::Result<(
     // Camada para console (Apenas se não for TUI e não estiver em modo quiet)
     let console_layer = if !is_tui && !quiet {
         let level = if verbose { "debug" } else { "info" };
-        Some(fmt::layer()
-            .with_target(false)
-            .with_thread_ids(false)
-            .with_line_number(false)
-            .with_ansi(true)
-            .with_writer(std::io::stderr)
-            .with_filter(EnvFilter::new(level)))
+        Some(
+            fmt::layer()
+                .with_target(false)
+                .with_thread_ids(false)
+                .with_line_number(false)
+                .with_ansi(true)
+                .with_writer(std::io::stderr)
+                .with_filter(EnvFilter::new(level)),
+        )
     } else {
         None
     };

@@ -58,7 +58,10 @@ pub async fn remove_desktop_entry(
         );
         refresh_desktop_database(desktop_dir);
     } else {
-        tracing::warn!("Desktop entry não encontrado para remover: {:?}", desktop_file);
+        tracing::warn!(
+            "Desktop entry não encontrado para remover: {:?}",
+            desktop_file
+        );
     }
     Ok(())
 }
@@ -78,7 +81,10 @@ fn refresh_desktop_database(desktop_dir: &Path) {
             tracing::info!("update-desktop-database concluído com sucesso.");
         }
         Ok(status) => {
-            tracing::warn!("update-desktop-database retornou código {:?}", status.code());
+            tracing::warn!(
+                "update-desktop-database retornou código {:?}",
+                status.code()
+            );
         }
         Err(e) => {
             tracing::warn!("Não foi possível executar update-desktop-database: {}", e);
@@ -179,7 +185,9 @@ mod tests {
     async fn remove_entry_deletes_existing_file() {
         let dir = tempdir().unwrap();
         let desktop_file = dir.path().join("app.desktop");
-        tokio::fs::write(&desktop_file, "[Desktop Entry]\n").await.unwrap();
+        tokio::fs::write(&desktop_file, "[Desktop Entry]\n")
+            .await
+            .unwrap();
 
         let executor = RealExecutor;
         remove_desktop_entry(&executor, "app", dir.path())

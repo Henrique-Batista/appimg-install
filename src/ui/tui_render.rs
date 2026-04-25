@@ -1,16 +1,16 @@
+use crate::core::scanner::{AppImageInfo, list_installed_appimages};
 use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use crate::core::scanner::{list_installed_appimages, AppImageInfo};
 use ratatui::{
+    Terminal,
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
-    Terminal,
 };
 use std::io;
 
@@ -123,7 +123,9 @@ impl App {
     }
 
     pub fn next(&mut self) {
-        if self.items.is_empty() { return; }
+        if self.items.is_empty() {
+            return;
+        }
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
@@ -138,7 +140,9 @@ impl App {
     }
 
     pub fn previous(&mut self) {
-        if self.items.is_empty() { return; }
+        if self.items.is_empty() {
+            return;
+        }
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -195,13 +199,18 @@ impl App {
     pub async fn execute_install(&mut self) -> Result<()> {
         let path = std::path::PathBuf::from(self.install_form.appimage_path.trim());
         if !path.is_file() {
-            self.app_logs.push(format!("Erro: O caminho fornecido não aponta para um arquivo válido: {:?}", path));
+            self.app_logs.push(format!(
+                "Erro: O caminho fornecido não aponta para um arquivo válido: {:?}",
+                path
+            ));
             anyhow::bail!("O caminho fornecido não existe ou não é um arquivo.");
         }
-        self.app_logs.push(format!("Iniciando instalação de {:?}", path));
+        self.app_logs
+            .push(format!("Iniciando instalação de {:?}", path));
 
         // 1. Validation
-        self.app_logs.push("Validando integridade (Magic Bytes)...".to_string());
+        self.app_logs
+            .push("Validando integridade (Magic Bytes)...".to_string());
         if let Err(e) = crate::core::validator::validate_appimage(&path).await {
             self.app_logs.push(format!("Falha na validação: {}", e));
             anyhow::bail!("AppImage corrompido ou inválido.");
@@ -211,34 +220,36 @@ impl App {
         let target_dir = if self.install_form.global {
             if !self.is_root() {
                 self.app_logs.push("A instalação global requer privilégios de root. Solicitando autenticação gráfica...".to_string());
-                
+
                 // Construct CLI arguments for elevated installation
                 let mut args = vec![
                     "install".to_string(),
                     self.install_form.appimage_path.clone(),
                     "--global".to_string(),
                 ];
-                
+
                 if !self.install_form.create_desktop {
                     args.push("--no-desktop".to_string());
                 }
-                
+
                 if !self.install_form.target_dir.trim().is_empty() {
                     args.push("--target-dir".to_string());
                     args.push(self.install_form.target_dir.trim().to_string());
                 }
-                
+
                 // Perform elevated operation without restarting TUI
                 match crate::utils::elevation::run_elevated_with_pkexec(&args) {
                     Ok(_) => {
-                        self.app_logs.push("Operação elevada concluída com sucesso.".to_string());
+                        self.app_logs
+                            .push("Operação elevada concluída com sucesso.".to_string());
                         self.refresh_list().await;
                         self.focus = Focus::List;
                         self.install_form = InstallFormState::default();
                         return Ok(());
                     }
                     Err(e) => {
-                        self.app_logs.push(format!("Falha na operação elevada: {}", e));
+                        self.app_logs
+                            .push(format!("Falha na operação elevada: {}", e));
                         anyhow::bail!("Falha na autenticação ou execução root.");
                     }
                 }
@@ -251,15 +262,19 @@ impl App {
         };
 
         let name = if self.install_form.custom_name.trim().is_empty() {
-            path.file_stem().unwrap_or_default().to_string_lossy().to_string()
+            path.file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string()
         } else {
             self.install_form.custom_name.trim().to_string()
         };
-        
+
         let file_name = match path.file_name() {
             Some(name) => name,
             None => {
-                self.app_logs.push("Erro: Não foi possível determinar o nome do arquivo.".to_string());
+                self.app_logs
+                    .push("Erro: Não foi possível determinar o nome do arquivo.".to_string());
                 anyhow::bail!("Nome de arquivo inválido.");
             }
         };
@@ -267,11 +282,14 @@ impl App {
         let desktop_dir = if self.install_form.global {
             std::path::PathBuf::from("/usr/share/applications")
         } else {
-            dirs::data_local_dir().unwrap_or_default().join("applications")
+            dirs::data_local_dir()
+                .unwrap_or_default()
+                .join("applications")
         };
 
         // 2. Real Execution Phase
-        self.app_logs.push("Iniciando cópias e permissões...".to_string());
+        self.app_logs
+            .push("Iniciando cópias e permissões...".to_string());
         if !target_dir.exists() {
             tokio::fs::create_dir_all(&target_dir).await?;
         }
@@ -284,13 +302,22 @@ impl App {
             if !desktop_dir.exists() {
                 tokio::fs::create_dir_all(&desktop_dir).await?;
             }
-            crate::core::desktop::create_desktop_entry(&real_executor, &name, &installed_path, &desktop_dir).await?;
-            self.app_logs.push(format!("Atalho .desktop criado para '{}'.", name));
+            crate::core::desktop::create_desktop_entry(
+                &real_executor,
+                &name,
+                &installed_path,
+                &desktop_dir,
+            )
+            .await?;
+            self.app_logs
+                .push(format!("Atalho .desktop criado para '{}'.", name));
         } else {
-            self.app_logs.push("Criação de atalho .desktop ignorada (desmarcado).".to_string());
+            self.app_logs
+                .push("Criação de atalho .desktop ignorada (desmarcado).".to_string());
         }
 
-        self.app_logs.push("Instalação concluída com sucesso.".to_string());
+        self.app_logs
+            .push("Instalação concluída com sucesso.".to_string());
         self.refresh_list().await;
         self.focus = Focus::List;
         self.install_form = InstallFormState::default();
@@ -299,33 +326,40 @@ impl App {
     }
 
     pub async fn execute_remove(&mut self, info: &AppImageInfo) -> Result<()> {
-        self.app_logs.push(format!("Iniciando remoção de {:?}", info.path));
+        self.app_logs
+            .push(format!("Iniciando remoção de {:?}", info.path));
 
-        let desktop_name = info.path.file_stem().unwrap_or_default().to_string_lossy().to_string();
-        
+        let desktop_name = info
+            .path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
         let is_global = info.path.starts_with("/opt");
         if is_global && !self.is_root() {
             self.app_logs.push("A remoção de um AppImage global requer privilégios de root. Solicitando autenticação gráfica...".to_string());
-            
-            let args = vec![
-                "remove".to_string(),
-                info.name.clone(),
-            ];
+
+            let args = vec!["remove".to_string(), info.name.clone()];
 
             match crate::utils::elevation::run_elevated_with_pkexec(&args) {
                 Ok(_) => {
-                    self.app_logs.push("Remoção elevada concluída com sucesso.".to_string());
+                    self.app_logs
+                        .push("Remoção elevada concluída com sucesso.".to_string());
                     self.refresh_list().await;
                     return Ok(());
                 }
                 Err(e) => {
-                    self.app_logs.push(format!("Falha na remoção elevada: {}", e));
+                    self.app_logs
+                        .push(format!("Falha na remoção elevada: {}", e));
                     anyhow::bail!("Falha na autenticação ou execução root.");
                 }
             }
         }
 
-        let local_desktop_dir = dirs::data_local_dir().unwrap_or_default().join("applications");
+        let local_desktop_dir = dirs::data_local_dir()
+            .unwrap_or_default()
+            .join("applications");
         let global_desktop_dir = std::path::PathBuf::from("/usr/share/applications");
 
         // Real Execution
@@ -335,16 +369,29 @@ impl App {
         remover.remove(&info.path).await?;
 
         // Try to remove corresponding .desktop file
-        self.app_logs.push("Limpando atalho .desktop se existir...".to_string());
-        
+        self.app_logs
+            .push("Limpando atalho .desktop se existir...".to_string());
+
         // Always try local
-        if let Err(e) = crate::core::desktop::remove_desktop_entry(&real_executor, &desktop_name, &local_desktop_dir).await {
+        if let Err(e) = crate::core::desktop::remove_desktop_entry(
+            &real_executor,
+            &desktop_name,
+            &local_desktop_dir,
+        )
+        .await
+        {
             tracing::debug!("Erro ao remover atalho local: {:?}", e);
         }
 
         // Try global if it was global
         if is_global {
-            if let Err(e) = crate::core::desktop::remove_desktop_entry(&real_executor, &desktop_name, &global_desktop_dir).await {
+            if let Err(e) = crate::core::desktop::remove_desktop_entry(
+                &real_executor,
+                &desktop_name,
+                &global_desktop_dir,
+            )
+            .await
+            {
                 tracing::warn!("Erro ao remover atalho global: {:?}", e);
             }
         }
@@ -374,16 +421,26 @@ mod tests {
         };
 
         // Certifique-se de que NÃO somos root (fake)
-        unsafe { std::env::remove_var("AURA_FAKE_ROOT"); }
-        
+        unsafe {
+            std::env::remove_var("AURA_FAKE_ROOT");
+        }
+
         let result = app.execute_remove(&info).await;
         // Agora o resultado é sucesso porque Mock de pkexec não falha por padrão
         if let Err(ref e) = result {
             println!("Error removing: {}", e);
         }
         assert!(result.is_ok());
-        assert!(app.app_logs.iter().any(|l| l.contains("Solicitando autenticação gráfica")));
-        assert!(app.app_logs.iter().any(|l| l.contains("Remoção elevada concluída com sucesso")));
+        assert!(
+            app.app_logs
+                .iter()
+                .any(|l| l.contains("Solicitando autenticação gráfica"))
+        );
+        assert!(
+            app.app_logs
+                .iter()
+                .any(|l| l.contains("Remoção elevada concluída com sucesso"))
+        );
     }
 
     #[tokio::test]
@@ -391,7 +448,7 @@ mod tests {
         let mut app = App::new().await.unwrap();
         app.install_form.global = true;
         app.install_form.appimage_path = "/tmp/fake.appimage".to_string();
-        
+
         // Criar um arquivo fake para passar na verificação de is_file()
         let fake_path = PathBuf::from("/tmp/fake.appimage");
         let mut header = vec![0u8; 11];
@@ -400,7 +457,9 @@ mod tests {
         tokio::fs::write(&fake_path, header).await.unwrap();
 
         // Certifique-se de que NÃO somos root (fake)
-        unsafe { std::env::remove_var("AURA_FAKE_ROOT"); }
+        unsafe {
+            std::env::remove_var("AURA_FAKE_ROOT");
+        }
 
         let result = app.execute_install().await;
         // Agora o resultado é sucesso porque Mock de pkexec não falha por padrão
@@ -408,9 +467,17 @@ mod tests {
             println!("Error: {}", e);
         }
         assert!(result.is_ok());
-        assert!(app.app_logs.iter().any(|l| l.contains("Solicitando autenticação gráfica")));
-        assert!(app.app_logs.iter().any(|l| l.contains("Operação elevada concluída com sucesso")));
-        
+        assert!(
+            app.app_logs
+                .iter()
+                .any(|l| l.contains("Solicitando autenticação gráfica"))
+        );
+        assert!(
+            app.app_logs
+                .iter()
+                .any(|l| l.contains("Operação elevada concluída com sucesso"))
+        );
+
         tokio::fs::remove_file(&fake_path).await.unwrap();
     }
 
@@ -419,23 +486,30 @@ mod tests {
         let mut app = App::new().await.unwrap();
         app.install_form.global = true;
         app.install_form.appimage_path = "/tmp/fake_fail.appimage".to_string();
-        
+
         let fake_path = PathBuf::from("/tmp/fake_fail.appimage");
         let mut header = vec![0u8; 11];
         header[0..4].copy_from_slice(&[0x7f, 0x45, 0x4c, 0x46]);
         header[8..11].copy_from_slice(&[0x41, 0x49, 0x02]);
         tokio::fs::write(&fake_path, header).await.unwrap();
 
-        unsafe { 
-            std::env::remove_var("AURA_FAKE_ROOT"); 
+        unsafe {
+            std::env::remove_var("AURA_FAKE_ROOT");
             std::env::set_var("AURA_TEST_PKEXEC_FAIL", "1");
         }
 
         let result = app.execute_install().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Falha na autenticação"));
-        
-        unsafe { std::env::remove_var("AURA_TEST_PKEXEC_FAIL"); }
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Falha na autenticação")
+        );
+
+        unsafe {
+            std::env::remove_var("AURA_TEST_PKEXEC_FAIL");
+        }
         tokio::fs::remove_file(&fake_path).await.unwrap();
     }
 }
@@ -476,7 +550,6 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> 
                 .title("Menu")
                 .borders(Borders::ALL)
                 .border_style(if app.focus == Focus::Menu { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) });
-            
             let menu_items_list: Vec<ListItem> = app.menu_items.iter().map(|i| {
                 ListItem::new(i.as_str()).style(Style::default().fg(Color::White))
             }).collect();
@@ -506,7 +579,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> 
                     .border_style(if app.focus == Focus::InstallForm { Style::default().fg(Color::Yellow) } else { Style::default().fg(Color::DarkGray) });
 
                 let mut text = vec![];
-                
+
                 text.push(ratatui::text::Line::from(vec![
                     ratatui::text::Span::styled("1. Caminho do AppImage:", Style::default()),
                 ]));
@@ -548,7 +621,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> 
                 let list_block = Block::default()
                     .title("AppImages Instalados")
                     .borders(Borders::ALL)
-                    .border_style(if app.focus == Focus::List { 
+                    .border_style(if app.focus == Focus::List {
                         if active_menu == MenuItem::Remover { Style::default().fg(Color::Red) } else { Style::default().fg(Color::Green) }
                     } else { Style::default().fg(Color::DarkGray) });
 
@@ -590,7 +663,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> 
             // Cada mensagem pode ter múltiplas linhas após o wrap; usamos uma margem
             // conservadora de 1 linha por mensagem para o cálculo inicial.
             let mut max_log_lines = log_inner_height.max(1);
-            
+
             // Subtrair espaço do tutorial se ele estiver sendo exibido
             if !app.has_interacted {
                 max_log_lines = max_log_lines.saturating_sub(2);
@@ -620,105 +693,112 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> 
         })?;
 
         if event::poll(std::time::Duration::from_millis(100))?
-            && let Event::Key(key) = event::read()? {
-                app.has_interacted = true;
-                match key.code {
-                    KeyCode::Char(c) => {
-                        if app.focus == Focus::InstallForm {
-                            if c == ' ' {
-                                if app.install_form.step == 3 {
-                                    app.install_form.create_desktop = !app.install_form.create_desktop;
-                                } else if app.install_form.step == 4 {
-                                    app.install_form.global = !app.install_form.global;
-                                }
-                            } else if app.install_form.step < 3 {
-                                match app.install_form.step {
-                                    0 => app.install_form.appimage_path.push(c),
-                                    1 => app.install_form.target_dir.push(c),
-                                    2 => app.install_form.custom_name.push(c),
-                                    _ => {}
-                                }
-                            }
-                        } else if c == 'q' {
-                            return Ok(());
-                        }
-                    }
-                    KeyCode::Backspace => {
-                        if app.focus == Focus::InstallForm {
-                            match app.install_form.step {
-                                0 => { app.install_form.appimage_path.pop(); }
-                                1 => { app.install_form.target_dir.pop(); }
-                                2 => { app.install_form.custom_name.pop(); }
-                                _ => {}
-                            }
-                        }
-                    }
-                    KeyCode::Enter => {
-                        if app.focus == Focus::InstallForm {
-                            if app.install_form.step == 5 {
-                                if let Err(e) = app.execute_install().await {
-                                    app.app_logs.push(format!("Falha na instalação: {:?}", e));
-                                    tracing::error!("Falha na instalação: {:?}", e);
-                                } else {
-                                    app.menu_state.select(Some(0));
-                                    app.focus = Focus::List;
-                                }
-                            } else if app.install_form.step == 3 {
+            && let Event::Key(key) = event::read()?
+        {
+            app.has_interacted = true;
+            match key.code {
+                KeyCode::Char(c) => {
+                    if app.focus == Focus::InstallForm {
+                        if c == ' ' {
+                            if app.install_form.step == 3 {
                                 app.install_form.create_desktop = !app.install_form.create_desktop;
                             } else if app.install_form.step == 4 {
                                 app.install_form.global = !app.install_form.global;
-                            } else {
-                                app.install_form.step += 1;
                             }
-                        } else if app.focus == Focus::List {
-                            let active_menu = app.menu_items[app.menu_state.selected().unwrap_or(0)];
-                            if active_menu == MenuItem::Remover
-                                && let Some(selected_idx) = app.list_state.selected()
-                                    && selected_idx < app.items.len() {
-                                        let appimage_info = app.items[selected_idx].clone();
-                                        if let Err(e) = app.execute_remove(&appimage_info).await {
-                                            app.app_logs.push(format!("Falha na remoção: {:?}", e));
-                                            tracing::error!("Falha na remoção: {:?}", e);
-                                        } else {
-                                            app.app_logs.push(format!("{} removido com sucesso.", appimage_info.name));
-                                        }
-                                    }
-                        }
-                    }
-                    KeyCode::Right => {
-                        if app.focus == Focus::Menu {
-                            let active_menu = app.menu_items[app.menu_state.selected().unwrap_or(0)];
-                            match active_menu {
-                                MenuItem::Instalar => app.focus = Focus::InstallForm,
-                                _ => app.focus = Focus::List,
+                        } else if app.install_form.step < 3 {
+                            match app.install_form.step {
+                                0 => app.install_form.appimage_path.push(c),
+                                1 => app.install_form.target_dir.push(c),
+                                2 => app.install_form.custom_name.push(c),
+                                _ => {}
                             }
                         }
+                    } else if c == 'q' {
+                        return Ok(());
                     }
-                    KeyCode::Left => {
-                        if app.focus == Focus::List || app.focus == Focus::InstallForm { app.focus = Focus::Menu; }
-                    }
-                    KeyCode::Down | KeyCode::Tab => {
-                        match app.focus {
-                            Focus::Menu => app.menu_next(),
-                            Focus::List => app.next(),
-                            Focus::InstallForm => app.install_form.step = (app.install_form.step + 1) % 6,
-                        }
-                    }
-                    KeyCode::Up | KeyCode::BackTab => {
-                        match app.focus {
-                            Focus::Menu => app.menu_previous(),
-                            Focus::List => app.previous(),
-                            Focus::InstallForm => {
-                                if app.install_form.step == 0 {
-                                    app.install_form.step = 5;
-                                } else {
-                                    app.install_form.step -= 1;
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
                 }
+                KeyCode::Backspace => {
+                    if app.focus == Focus::InstallForm {
+                        match app.install_form.step {
+                            0 => {
+                                app.install_form.appimage_path.pop();
+                            }
+                            1 => {
+                                app.install_form.target_dir.pop();
+                            }
+                            2 => {
+                                app.install_form.custom_name.pop();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                KeyCode::Enter => {
+                    if app.focus == Focus::InstallForm {
+                        if app.install_form.step == 5 {
+                            if let Err(e) = app.execute_install().await {
+                                app.app_logs.push(format!("Falha na instalação: {:?}", e));
+                                tracing::error!("Falha na instalação: {:?}", e);
+                            } else {
+                                app.menu_state.select(Some(0));
+                                app.focus = Focus::List;
+                            }
+                        } else if app.install_form.step == 3 {
+                            app.install_form.create_desktop = !app.install_form.create_desktop;
+                        } else if app.install_form.step == 4 {
+                            app.install_form.global = !app.install_form.global;
+                        } else {
+                            app.install_form.step += 1;
+                        }
+                    } else if app.focus == Focus::List {
+                        let active_menu = app.menu_items[app.menu_state.selected().unwrap_or(0)];
+                        if active_menu == MenuItem::Remover
+                            && let Some(selected_idx) = app.list_state.selected()
+                            && selected_idx < app.items.len()
+                        {
+                            let appimage_info = app.items[selected_idx].clone();
+                            if let Err(e) = app.execute_remove(&appimage_info).await {
+                                app.app_logs.push(format!("Falha na remoção: {:?}", e));
+                                tracing::error!("Falha na remoção: {:?}", e);
+                            } else {
+                                app.app_logs
+                                    .push(format!("{} removido com sucesso.", appimage_info.name));
+                            }
+                        }
+                    }
+                }
+                KeyCode::Right => {
+                    if app.focus == Focus::Menu {
+                        let active_menu = app.menu_items[app.menu_state.selected().unwrap_or(0)];
+                        match active_menu {
+                            MenuItem::Instalar => app.focus = Focus::InstallForm,
+                            _ => app.focus = Focus::List,
+                        }
+                    }
+                }
+                KeyCode::Left => {
+                    if app.focus == Focus::List || app.focus == Focus::InstallForm {
+                        app.focus = Focus::Menu;
+                    }
+                }
+                KeyCode::Down | KeyCode::Tab => match app.focus {
+                    Focus::Menu => app.menu_next(),
+                    Focus::List => app.next(),
+                    Focus::InstallForm => app.install_form.step = (app.install_form.step + 1) % 6,
+                },
+                KeyCode::Up | KeyCode::BackTab => match app.focus {
+                    Focus::Menu => app.menu_previous(),
+                    Focus::List => app.previous(),
+                    Focus::InstallForm => {
+                        if app.install_form.step == 0 {
+                            app.install_form.step = 5;
+                        } else {
+                            app.install_form.step -= 1;
+                        }
+                    }
+                },
+                _ => {}
             }
+        }
     }
 }
